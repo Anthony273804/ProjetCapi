@@ -4,6 +4,12 @@ import json
 
 import os
 
+from db import get_connection
+
+
+
+
+
 
 
 class Player:
@@ -27,7 +33,8 @@ class Player:
 class Game:
 
     def __init__(self):
-
+        self.id = None
+        
         self.players = []
 
         self.mode = None
@@ -36,7 +43,45 @@ class Game:
 
         self.selected_story = None
 
+    def save_game(self):
+        """Enregistre la partie et les joueurs en DB"""
+        conn = get_connection()
+        cur = conn.cursor()
+        # 1. Insérer la partie
+        cur.execute(
+            "INSERT INTO games (mode, selected_story_id) VALUES (%s, %s) RETURNING id",
+            (self.mode, self.selected_story["id"] if self.selected_story else None)
+        )
+        self.id = cur.fetchone()["id"]
 
+        # 2. Insérer les joueurs et votes
+        for player in self.players:
+            # Vérifier si le joueur existe déjà
+            cur.execute("SELECT id FROM players WHERE pseudo = %s", (player.pseudo,))
+            res = cur.fetchone()
+            if res:
+                player_id = res["id"]
+            else:
+                cur.execute("INSERT INTO players (pseudo) VALUES (%s) RETURNING id", (player.pseudo,))
+                player_id = cur.fetchone()["id"]
+
+            # Insérer le vote
+            cur.execute(
+                "INSERT INTO game_players (game_id, player_id, vote) VALUES (%s, %s, %s)",
+                (self.id, player_id, player.vote)
+            )
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+    def load_backlog_from_db(self):
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM backlog ORDER BY id")
+        self.backlog = cur.fetchall()
+        cur.close()
+        conn.close()
 
     # === Configuration joueurs ===
 
@@ -78,13 +123,7 @@ class Game:
 
         print("1. Mode strict (unanimité)")
 
-        print("2. Moyenne")
-
-        print("3. Médiane")
-
-        print("4. Majorité absolue")
-
-        print("5. Majorité relative")
+        print("2. Majorité relative")
 
 
 
@@ -94,13 +133,7 @@ class Game:
 
             "1": "strict",
 
-            "2": "moyenne",
-
-            "3": "mediane",
-
-            "4": "majorite_absolue",
-
-            "5": "majorite_relative"
+            "2": "majorite_relative"
 
         }
 
@@ -249,15 +282,23 @@ class Game:
 
 
 if __name__ == "__main__":
-
     game = Game()
+    
+    # Charger le backlog depuis la DB
+    game.load_backlog_from_db()
 
-    game.import_backlog()
-
+    # Configuration des joueurs et mode
     game.setup_players()
-
     game.choose_mode()
-
+    # Sélection d'une story
     game.select_story()
-
+    
+    # Phase de vote
     game.start_voting()
+
+    # Sauvegarde en base
+    game.save_game()
+
+    # Résumé
+    game.summary()
+
