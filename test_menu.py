@@ -2,7 +2,7 @@ import pytest
 
 import json
 
-from backend import Game, Player
+from Backend import Game, Player
 
 
 
