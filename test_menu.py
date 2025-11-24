@@ -158,7 +158,7 @@ def test_invalid_vote(monkeypatch, sample_game, capsys):
 
     captured = capsys.readouterr()
 
-    assert "⚠️ Choix invalide" in captured.out
+    assert "Choix invalide" in captured.out
 
     assert all(p.vote == "☕" for p in sample_game.players)
 
