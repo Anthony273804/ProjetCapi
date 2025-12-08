@@ -1,13 +1,12 @@
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import sqlite3
 
-DB_PARAMS = {
-    "dbname": "cap_db",
-    "user": "postgres",
-    "password": "123",
-    "host": "localhost",
-    "port": 5432
-}
+DB_FILE = "cap_db.sqlite3"
 
 def get_connection():
-    return psycopg2.connect(**DB_PARAMS, cursor_factory=RealDictCursor)
+    """
+    Ouvre une connexion SQLite et retourne un objet connexion.
+    row_factory = sqlite3.Row permet d'accéder aux colonnes par nom (`row["id"]`)
+    """
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    return conn
