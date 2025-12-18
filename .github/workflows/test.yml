@@ -1,4 +1,4 @@
-name: Tests unitaire Python
+name: Tests unitaires Python
 
 on:
   push:
@@ -14,23 +14,59 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
-        python-version: 3.8
+        python-version: "3.11"
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest pytest-html
 
     - name: Add project directory to PYTHONPATH
       run: echo "PYTHONPATH=$PWD" >> $GITHUB_ENV
 
-    - name: Run tests and generate HTML report
+    - name: Initialize SQLite database
       run: |
-        pytest test_menu.py
-      env:
-        CI: true
+        python - <<EOF
+        import sqlite3
+        conn = sqlite3.connect("cap_db.sqlite3")
+        cur = conn.cursor()
+        cur.executescript("""
+        CREATE TABLE IF NOT EXISTS players (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pseudo TEXT UNIQUE NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS games (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            mode TEXT NOT NULL,
+            selected_story_id INTEGER,
+            created_at TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS game_players (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            game_id INTEGER NOT NULL,
+            player_id INTEGER NOT NULL,
+            vote TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS backlog (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titre TEXT NOT NULL,
+            description TEXT
+        );
+
+        INSERT INTO backlog (titre, description)
+        VALUES ('Story test', 'Story pour tests');
+        """)
+        conn.commit()
+        conn.close()
+        EOF
+
+    - name: Run unit tests
+      run: |
+        python -m unittest discover -s tests
