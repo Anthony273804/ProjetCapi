@@ -20,6 +20,11 @@ class Game:
         self.selected_story = None
         self.created_at = datetime.datetime.now()
 
+    def check_unanimity(self):
+        """Retourne True si tous les votes sont identiques (strict)"""
+        votes = [p.vote for p in self.players]
+        return all(v == votes[0] for v in votes)
+
     # ---------------------------------------------------------
     # DB: sauvegarder la partie
     # ---------------------------------------------------------
@@ -118,8 +123,8 @@ class GameUI:
     # -------------------------
     def update_listbox(self):
         self.listbox.delete(0, tk.END)
-        for story in self.game.backlog:
-            self.listbox.insert(tk.END, f"[{story['id']}] {story['titre']}")
+        for idx, story in enumerate(self.game.backlog, start=1):
+            self.listbox.insert(tk.END, f"{idx}. {story['titre']}")
 
     def refresh_backlog(self):
         self.game.load_backlog()
@@ -200,15 +205,58 @@ class GameUI:
     # -------------------------
     def start_voting(self):
         if not self.game.selected_story:
-            messagebox.showwarning("Alerte", "Sélectionnez une story avant de voter")
+            messagebox.showwarning("Erreur", "Aucune story sélectionnée")
             return
-        possible_votes = ["1","2","3","5","8","13","20","40","100","café"]
+
+        if not self.game.players:
+            messagebox.showwarning("Erreur", "Aucun joueur")
+            return
+
+        self.vote_window = tk.Toplevel(self.master)
+        self.vote_window.title("Phase de vote")
+
+        self.vote_vars = []
+        possible_votes = ["1", "2", "3", "5", "8", "13", "20", "40", "100", "café"]
+
         for player in self.game.players:
-            vote = simpledialog.askstring("Vote", f"{player.pseudo}, votre carte :\nOptions : {', '.join(possible_votes)}")
-            while vote not in possible_votes:
-                vote = simpledialog.askstring("Vote", f"Choix invalide. {player.pseudo}, votre carte :\nOptions : {', '.join(possible_votes)}")
+            frame = tk.Frame(self.vote_window)
+            frame.pack(padx=10, pady=5, anchor="w")
+
+            tk.Label(frame, text=player.pseudo, width=15, anchor="w").pack(side="left")
+
+            var = tk.StringVar()
+            tk.OptionMenu(frame, var, *possible_votes).pack(side="left")
+
+            self.vote_vars.append((player, var))
+
+        tk.Button(
+            self.vote_window,
+            text="Valider les votes",
+            command=self.validate_votes
+        ).pack(pady=10)
+
+    def validate_votes(self):
+        # Récupérer les votes
+        for player, var in self.vote_vars:
+            vote = var.get()
+            if not vote:
+                messagebox.showerror("Erreur", f"{player.pseudo} n'a pas voté")
+                return
             player.vote = vote
-        messagebox.showinfo("Votes", "Votes enregistrés ✔")
+
+        # MODE STRICT → vérifier unanimité
+        if self.game.mode == "strict":
+            votes = [p.vote for p in self.game.players]
+            if len(set(votes)) != 1:
+                messagebox.showwarning(
+                    "Pas unanime",
+                    "Les votes ne sont pas unanimes.\nRevotez."
+                )
+                return  # ⚠️ on reste dans la fenêtre
+
+        # MODE MAJORITÉ RELATIVE (ou strict validé)
+        messagebox.showinfo("Votes validés", "Votes enregistrés avec succès")
+        self.vote_window.destroy()
 
     # -------------------------
     # Résumé & sauvegarde
