@@ -2,7 +2,7 @@ import unittest
 import sqlite3
 import datetime
 
-from Backend import Game, Player
+from PokerCode import Game, Player
 from db import get_connection
 
 
